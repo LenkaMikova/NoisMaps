@@ -10,3 +10,5 @@ Veškeré mapové výstupy a ostatní příslohy k BP [Přílohy k BP](https://g
 > **TIP:** [StoryMaps](https://storymaps.arcgis.com/stories/f9a9ed9471db4ff794f17475eac44003) k bakalářské práci</p>
 
 ## DP Hluková mapa odvozená ze satelitních dat
+
+Kód JavaScriptu pro získání hodnot ze satelitů prostřednictvím Google Earth Engine Code Editor [GEE_satData.
