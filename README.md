@@ -15,4 +15,8 @@ Veškeré mapové výstupy a ostatní příslohy k BP [Přílohy k BP](https://g
 
 ## DP Hluková mapa odvozená ze satelitních dat
 
-Kód JavaScriptu pro získání hodnot ze satelitů prostřednictvím Google Earth Engine Code Editor [GEE_satData.
+### Cíle práce
+Cílem práce je vytvořit model, který bude predikovat míru hluku na základě nepřímého měření satelitními systémy dálkového průzkumu Země.
+
+### Výstupy práce
+Popis kódu pro diplomovou práci je popsán v souboru Colab.
