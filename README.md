@@ -2,7 +2,7 @@
 
 ## BP Porovnání hlukových map a jejich kartografická vizualizace ve 2D a 3D
 
-<b>Cílem práce</b>
+**Cílem práce** </p>
 Práce se věnuje problematice hlukové zátěže její vizualizace, přičemž se podrobně zaměřuje na území Prahy-Radotína.  Cílem bylo představit tradiční i pokročilé kartografické metody, které jsou vhodné pro znázornění tohoto jevu. Dále práce porovnává hlukové mapy z různých zdrojů, které byly v danou chvíli pro území dostupné.
 
 
