@@ -19,4 +19,4 @@ Veškeré mapové výstupy a ostatní přílohy k BP [Přílohy k BP](https://gi
 Cílem práce je vytvořit model, který bude predikovat míru hluku na základě nepřímého měření satelitními systémy dálkového průzkumu Země.
 
 ### Výstupy práce
-Popis kódu pro diplomovou práci je popsán v souboru Colab *(bude přidáno později)*.
+Popis kódu pro stažení dat je popsán v [Colab](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown.ipynb).
