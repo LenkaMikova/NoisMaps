@@ -19,7 +19,7 @@ Veškeré mapové výstupy a ostatní přílohy k BP [Přílohy k BP](https://gi
 Cílem práce je vytvořit model, který bude predikovat míru hluku na základě nepřímého měření satelitními systémy dálkového průzkumu Země za využití dat ze SHM 2022.
 
 ### Výstupy práce
-Popis kódu pro stažení dat je popsán v [Colab](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown.ipynb).</p>
+Popis kódu pro stažení dat je popsán v [Colab]([DP_LMI_dataDown_final.ipynb](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown_final.ipynb)).</p>
 Práce s daty [Model v R](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
 Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
 [Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
