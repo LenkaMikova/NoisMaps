@@ -20,5 +20,6 @@ Cílem práce je vytvořit model, který bude predikovat míru hluku na základ�
 
 ### Výstupy práce
 Popis kódu pro stažení dat je popsán v [Colab](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown.ipynb).</p>
-Úplné znění diplomové práce bez příloh [DP](odkaz na soubor v GitHub)</p>
-[Přílohy k DP](odkaz na soubor v GitHub)</p>
+Práce s daty [Model v R](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
+Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
+[Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
