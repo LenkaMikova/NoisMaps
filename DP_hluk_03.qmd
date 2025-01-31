@@ -1,0 +1,245 @@
+---
+title: "DP_hluk_03 - model RF"
+author: "Lenka Miková"
+format: html
+editor: visual
+jupyter: python3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!require(patchwork)) install.packages("patchwork")
+if (!require(purrr)) install.packages("purrr")
+if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(corrplot)) install.packages("corrplot")
+if (!require(randomForest)) install.packages("randomForest")
+if (!require(car)) install.packages("car")
+if (!require(ranger)) install.packages("ranger")
+
+library(data.table)
+library(ggplot2)
+library(patchwork)
+library(purrr)
+library(corrplot)
+library(randomForest)
+library(car)
+library(ranger)
+```
+
+# Vstupní data
+
+## Načtení dat
+
+```{r data-loading}
+setwd("F:/Skola/+M-PVZP/+DP/model/DP_hluk")
+input_dir <- "F:/Skola/+M-PVZP/+DP/model/DP_hluk"
+dtaM <- fread("dta.csv")
+```
+
+## Selekce dat
+
+```{r}
+removed_variables <- c("noiseLevel", "sourceLDEN", "ID")
+dtaM <- dtaM[, !removed_variables, with = FALSE]
+head(dtaM)
+```
+
+
+## Rozdělení dat
+
+```{r data-loading}
+set.seed(123)
+n <- nrow(dtaM)
+train_index <- sample(1:n, 0.7 * n)  # 70 % train data
+remaining_index <- setdiff(1:n, train_index)
+valid_index <- sample(remaining_index, 0.5 * length(remaining_index))  # 15 % valid data
+test_index <- setdiff(remaining_index, valid_index)  # 15 % test data
+
+train_data <- dtaM[train_index]
+valid_data <- dtaM[valid_index]
+test_data <- dtaM[test_index]
+```
+
+# Model
+
+## Trénink modelu RF
+
+```{r rf-model-training}
+# Def RF model
+rf_model <- randomForest(
+  LDEN ~ ., 
+  data = train_data, 
+  #mtry = 10,
+  ntree = 2000, 
+  #nodesize = 5, 
+  importance = TRUE, 
+  na.action = na.omit
+)
+
+print(rf_model)
+```
+```{r}
+# Promenne pouzite v modelu
+cat("Variables included in the model:\n")
+print(colnames(train_data))
+```
+
+
+## Důležitost proměnných
+
+```{r feature-importance}
+
+importance_scores <- importance(rf_model)
+var_imp <- data.frame(
+  Variable = rownames(importance_scores),
+  MeanDecreaseAccuracy = importance_scores[, 1],
+  MeanDecreaseGini = importance_scores[, 2]
+)
+
+# Odstraneni noiseLevel, sourceLDEN, ID
+var_imp <- var_imp[!var_imp$Variable %in% c("noiseLevel", "ID", "sourceLDEN"), ]
+
+var_imp <- var_imp[order(var_imp$MeanDecreaseAccuracy, decreasing = TRUE), ]
+
+ggplot(var_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Feature Importance - Random Forest",
+    x = "Variables",
+    y = "Mean Decrease in Accuracy"
+  ) +
+  theme_minimal()
+```
+
+# Model - upravený
+
+## Optimalizace hypermarkerů
+
+```{r rf-hyperparameter-tuning}
+control <- trainControl(method = "cv", number = 5)
+
+tune_grid <- expand.grid(
+  mtry = c(2, 4, 6, 8),
+  splitrule = "variance",
+  min.node.size = c(1, 5, 10)
+)
+
+set.seed(123)
+rf_tuned <- train(
+  LDEN ~ ., 
+  data = train_data, 
+  method = "ranger",
+  trControl = control,
+  tuneGrid = tune_grid
+)
+
+# Best model tuning
+print(rf_tuned$bestTune)
+```
+
+## Úprava vstupních proměnných
+
+```{r}
+# vyber casti dat - nema smysl
+#dtaM <- dtaM[, .(LDEN, L8_NDVI_Max, S2_NDBI, S2_ISA, S2_UI, NO2_log, VIIRS_log, CO, HCHO_log, CH4_log, S2_MNDWI, LST, SO2)]
+#dtaM <- dtaM[, .(LDEN, L8_NDVI_Max, S2_NDBI, S2_ISA, L8_ISA, S2_UI, S2_NDVI_Median, L8_NDBI, NO2_log, VIIRS_log, L8_NDVI_Median, NO2)]
+
+# opetovne rozdeleni dat
+set.seed(123)
+n <- nrow(dtaM)
+train_index <- sample(1:n, 0.7 * n)  # 70% training data
+remaining_index <- setdiff(1:n, train_index)
+valid_index <- sample(remaining_index, 0.5 * length(remaining_index))  # 15% validation data
+test_index <- setdiff(remaining_index, valid_index)  # 15% test data
+
+train_data <- dtaM[train_index]
+valid_data <- dtaM[valid_index]
+test_data <- dtaM[test_index]
+
+```
+
+## Trénink modelu RF s optimalizovanými parametry
+
+```{r rf-model-training}
+# trenovani modeul - optimalni parametry
+set.seed(123)
+rf_model <- randomForest(
+  LDEN ~ ., 
+  data = train_data, 
+  #mtry = rf_tuned$bestTune$mtry, # vyslo 8
+  mtry = 3,
+  ntree = 500, 
+  #nodesize = rf_tuned$bestTune$min.node.size,  # vyslo 5
+  nodesize = 1,
+  importance = TRUE, 
+  na.action = na.omit
+)
+
+# Display model summary
+print(rf_model)
+```
+
+## Důležitost proměnných - po změně
+
+```{r feature-importance}
+
+importance_scores <- importance(rf_model)
+var_imp <- data.frame(
+  Variable = rownames(importance_scores),
+  MeanDecreaseAccuracy = importance_scores[, 1],
+  MeanDecreaseGini = importance_scores[, 2]
+)
+
+var_imp <- var_imp[order(var_imp$MeanDecreaseAccuracy, decreasing = TRUE), ]
+
+ggplot(var_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Feature Importance - Random Forest",
+    x = "Variables",
+    y = "Mean Decrease in Accuracy"
+  ) +
+  theme_minimal()
+```
+
+# Vyhodnocení modelu
+
+```{r model-evaluation}
+# predikce test data
+predicted <- predict(rf_model, test_data)
+actual <- test_data$LDEN
+
+# predikce train data
+train_predicted <- predict(rf_model, train_data)
+train_actual <- train_data$LDEN
+
+# vypocet metrik
+train_rmse <- sqrt(mean((train_predicted - train_actual)^2))
+train_mae <- mean(abs(train_predicted - train_actual))
+train_rsq <- cor(train_predicted, train_actual)^2
+
+cat("RMSE on Training Data:", train_rmse, "\n")
+cat("MAE on Training Data:", train_mae, "\n")
+cat("R-squared on Training Data:", train_rsq, "\n")
+
+rmse <- sqrt(mean((predicted - actual)^2))   # Penalizuje velke chyby vice nez male
+mae <- mean(abs(predicted - actual)) # Jednoduse meri prumer absolutni chyby
+rsq <- cor(predicted, actual)^2    # Udava kolik variability promenné LDE je vysvetleno 
+
+cat("RMSE on Test Data:", rmse, "\n")
+cat("MAE on Test Data:", mae, "\n")
+cat("R-squared on Test Data:", rsq, "\n")
+
+valid_predicted <- predict(rf_model, valid_data)
+valid_actual <- valid_data$LDEN
+
+valid_rmse <- sqrt(mean((valid_predicted - valid_actual)^2)) 
+valid_mae <- mean(abs(valid_predicted - valid_actual)) 
+valid_rsq <- cor(valid_predicted, valid_actual)^2
+
+cat("RMSE on Validation Data:", valid_rmse, "\n")
+cat("MAE on Validation Data:", valid_mae, "\n")
+cat("R-squared on Validation Data:", valid_rsq, "\n")
+```

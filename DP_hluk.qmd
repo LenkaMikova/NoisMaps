@@ -1,0 +1,200 @@
+---
+title: "DP_hluk - sloučení dat"
+author: "Lenka Miková"
+format: html
+editor: visual
+jupyter: python3
+---
+
+PCA analýza (vyhodí proměnné, které jsou k ničemu) a soustředit se na kategorická data hluku (nejdená se o hodnotu hluku)
+
+```{R}
+update.packages(ask = FALSE, checkBuilt = TRUE)
+
+```
+
+```{R}
+#remove.packages("pkgconfig")
+install.packages("pkgconfig", dependencies = TRUE)
+```
+
+```{R}
+library(dplyr)
+library(pkgconfig)
+```
+
+# Vstupní data
+
+Vstupní data jsou z několika různých zdrojů - získány byly prostřednictvím Python skriptu stažením hodnot ve vybraných 1400 bodech z Google Earth Engine.
+
+```{R}
+input_dir <- "D:/Skola/+M-PVZP/+DP/inputdata"
+
+message("Set input director: ", input_dir, "\n")
+
+output_file <- file.path(input_dir, "+zpracovaniDat/2022_08/inputdata_08_2022.csv")
+
+message("Set output file: ", output_file, "\n")
+```
+
+## Načtení s práce s daty
+
+Mezi daty jsou data z Landsat 8 (spektrální indexy NDVI, NDBI, MNDWI, ISA, UI), MODIS (Land Surface Temperature), Landsat 2 (spektrální indexy jako u L8), Landsat 5P (CO, HCHO, CH4, NO2, O3, SO2) a VIIRS (light pollution).
+
+```{R}
+#| echo: false
+landsat8 <- read.csv(file.path(input_dir, "landsat8/L8_2022_08/landsat8_samples.csv"))
+modis <- read.csv(file.path(input_dir, "modis/modis_2022_08/modis_lst_day.csv"))
+sentinel2 <- read.csv(file.path(input_dir, "sentinel2/S2_2022_08/sentinel2_samples.csv"))
+sentinel5P_CO <- read.csv(file.path(input_dir, "sentinel5P/S5P_2022_08/sentinel5P_samples_CO.csv"))
+sentinel5P_HCHO <- read.csv(file.path(input_dir, "sentinel5P/S5P_2022_08/sentinel5P_samples_HCHO.csv"))
+sentinel5P_CH4 <- read.csv(file.path(input_dir, "sentinel5P/S5P_2022_08/sentinel5P_samples_CH4.csv"))
+sentinel5P_NO2 <- read.csv(file.path(input_dir, "sentinel5P/S5P_2022_08/sentinel5P_samples_NO2.csv"))
+sentinel5P_O3 <- read.csv(file.path(input_dir, "sentinel5P/S5P_2022_08/sentinel5P_samples_O3.csv"))
+sentinel5P_SO2 <- read.csv(file.path(input_dir, "sentinel5P/S5P_2022_08/sentinel5P_samples_SO2.csv"))
+viirs <- read.csv(file.path(input_dir, "viirs/viirs_2022_08/lightPollution_values.csv"))
+
+message("Data uploaded successfully.")
+
+```
+
+### Landsad 8
+
+```{R}
+head(landsat8)
+
+```
+
+```{R}
+columns_to_rename_L8 <- c("NDVI_Max","NDVI_Median", "NDBI", "MNDWI", "ISA", "UI")
+
+names(landsat8)[names(landsat8) %in% columns_to_rename_L8] <- 
+  paste0("L8_", names(landsat8)[names(landsat8) %in% columns_to_rename_L8])
+
+head(landsat8)
+```
+
+### MODIS
+
+```{R}
+head(modis)
+```
+
+```{R}
+names(modis)[4] <- "LST"
+
+head(modis)
+```
+
+### Sentienl 2
+
+```{R}
+head(sentinel2)
+```
+
+```{R}
+names(sentinel2)[8] <- "S2_NDVI_Median"
+
+head(sentinel2)
+```
+
+### Sentinel 5P
+
+```{R}
+# slouceni
+sentinel5P <- sentinel5P_CO %>%
+  left_join(sentinel5P_HCHO, by = "ID") %>%
+  left_join(sentinel5P_CH4, by = "ID") %>%
+  left_join(sentinel5P_NO2, by = "ID") %>%
+  left_join(sentinel5P_O3, by = "ID") %>%
+  left_join(sentinel5P_SO2, by = "ID") %>%
+  select(ID, everything())
+```
+
+```{R}
+head(sentinel5P)
+```
+
+### VIIRS
+
+```{R}
+head(viirs)
+```
+
+```{R}
+
+names(viirs)[2] <- "VIIRS"
+
+head(viirs)
+```
+
+## Kontrola dat, sloučení a export
+
+Kontrola, že všude existuje sloupec ID pro sjednocení do 1 tabuky.
+
+```{R}
+lapply(list(landsat8, modis, sentinel2, sentinel5P, viirs), function(df) names(df))
+
+```
+
+```{R}
+merged_data <- Reduce(function(x, y) merge(x, y, by = "ID", all = TRUE),  # slouceni
+                      list(landsat8, modis, sentinel2, sentinel5P, viirs))
+
+merged_data <- merged_data[!duplicated(merged_data$ID), ] # odstranení duplicit
+
+dta0 <- merged_data %>%
+  select(ID, LDEN, noiseLevel, MERGE_SRC, L8_ISA, L8_MNDWI, L8_NDBI, L8_NDVI_Max,L8_NDVI_Median, L8_UI, 
+         LST, S2_ISA, S2_MNDWI, S2_NDVI_Median, S2_NDBI, S2_UI, 
+         CO, HCHO, CH4, NO2, O3, SO2, VIIRS)
+
+```
+
+```{R}
+
+message("Number of lines is: ", nrow(dta0), "\n")
+```
+
+```{R}
+message("Number of duplicate rows: ", sum(duplicated(dta0$ID)), "\n")
+```
+
+```{R}
+head(dta0)
+```
+
+```{R}
+dta0 <- dta0[rowSums(is.na(dta0)) < ncol(dta0), ]
+```
+
+```{R}
+colnames(dta0)
+```
+
+```{R}
+colnames(dta0)[colnames(dta0) == "MERGE_SRC"] <- "sourceLDEN"
+colnames(dta0)
+```
+
+```{R}
+library(data.table)
+
+dta0 <- as.data.table(dta0)  # prevedeni na dataFrame
+dta <- copy(dta0[, setdiff(names(dta0), c("ID", "noiseLevel", "sourceLDEN")), with = FALSE])
+dta[, LDEN := as.factor(LDEN)]
+
+```
+
+```{R}
+write.csv(dta0, output_file, row.names = FALSE)
+
+message("The merged file was successfully created.:", output_file, "\n")
+```
+
+```{R}
+str(dta)
+```
+
+```{R}
+message("Number of lines is: ", nrow(dta), "\n")
+```

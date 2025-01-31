@@ -1,0 +1,117 @@
+---
+title: "DP_hluk_05 - model Neuronove site"
+format: html
+editor: visual
+jupyter: python3
+---
+
+```{r}
+
+knitr::opts_chunk$set(echo = TRUE)
+if (!require(neuralnet)) install.packages("neuralnet")
+if (!require(caret)) install.packages("caret")
+if (!require(ggplot2)) install.packages("ggplot2")
+
+library(neuralnet)
+library(caret)
+library(ggplot2)
+```
+
+# Neuronové sítě pro predikci LDEN
+
+## Načtení dat
+
+```{r data-loading, include=FALSE}
+
+setwd("F:/Skola/+M-PVZP/+DP/model/DP_hluk")
+input_dir <- "F:/Skola/+M-PVZP/+DP/model/DP_hluk"
+dtaM <- fread("dta.csv")  
+
+dtaM <- dtaM[, !c("ID", "noiseLevel", "sourceLDEN"), with = FALSE]
+
+# Normalizace dat
+normalize <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+dtaM_norm <- as.data.frame(lapply(dtaM, normalize))
+```
+
+## Rozdělení vstupních dat
+
+```{r}
+set.seed(123)
+n <- nrow(dtaM_norm)
+train_index <- sample(1:n, 0.7 * n)  # 70% training data
+remaining_index <- setdiff(1:n, train_index)
+valid_index <- sample(remaining_index, 0.5 * length(remaining_index))  # 15% validation data
+test_index <- setdiff(remaining_index, valid_index)  # 15% test data
+
+train_data <- dtaM_norm[train_index, ]
+valid_data <- dtaM_norm[valid_index, ]
+test_data <- dtaM_norm[test_index, ]
+```
+
+## Trénink neuronové sítě
+
+```{r nn-training}
+# def neural network (NN)
+features <- setdiff(names(train_data), "LDEN")
+nn_formula <- as.formula(paste("LDEN ~", paste(features, collapse = " + ")))
+
+# trenovani NN
+set.seed(123)
+nn_model <- neuralnet(
+  formula = nn_formula,
+  data = train_data,   
+  hidden = c(20, 10, 5),     #nefungovalo c(5, 3), c(10, 5)
+  linear.output = TRUE,
+  stepmax = 1e6  # zvyseni maxi poctu iteraci
+)
+
+plot(nn_model)
+```
+
+## Vyhodnocení modelu
+
+```{r nn-evaluation}
+# predikce - test data
+test_predicted <- compute(nn_model, test_data[, features])$net.result
+actual <- test_data$LDEN
+
+# Denormalizace predikce 
+denormalize <- function(x, min_val, max_val) {
+  return(x * (max_val - min_val) + min_val)
+}
+
+test_predicted <- denormalize(
+  test_predicted,
+  min(dtaM$LDEN),
+  max(dtaM$LDEN)
+)
+
+# vypocet metrik
+rmse <- sqrt(mean((test_predicted - actual)^2))
+mae <- mean(abs(test_predicted - actual))
+rsq <- cor(test_predicted, actual)^2
+
+cat("RMSE on Test Data:", rmse, "\n")
+cat("MAE on Test Data:", mae, "\n")
+cat("R-squared on Test Data:", rsq, "\n")
+
+valid_predicted <- compute(nn_model, valid_data[, features])$net.result
+valid_actual <- valid_data$LDEN
+
+valid_predicted <- denormalize(
+  valid_predicted,
+  min(dtaM$LDEN),
+  max(dtaM$LDEN)
+)
+
+valid_rmse <- sqrt(mean((valid_predicted - valid_actual)^2))
+valid_mae <- mean(abs(valid_predicted - valid_actual))
+valid_rsq <- cor(valid_predicted, valid_actual)^2
+
+cat("RMSE on Validation Data:", valid_rmse, "\n")
+cat("MAE on Validation Data:", valid_mae, "\n")
+cat("R-squared on Validation Data:", valid_rsq, "\n")
+```

@@ -1,0 +1,241 @@
+---
+title: "DP_hluk_02 - analýza a úprava dat"
+format: html
+editor: visual
+jupyter: python3
+---
+
+```{R}
+require(data.table)
+require(ggplot2)
+require(randomForest)
+require(caret)
+require(smotefamily)
+```
+
+# Vstupní data
+
+```{R}
+#| echo: false
+setwd("D:/Skola/+M-PVZP/+DP/inputdata/+zpracovaniDat/2022_all")
+input_dir <- "D:/Skola/+M-PVZP/+DP/inputdata/+zpracovaniDat/2022_all"
+dta0 <- fread("inputdata_all_2022.csv")
+
+message("Data uploaded successfully.")
+
+```
+
+```{R}
+str(dta0)
+```
+
+```{R}
+# odstraneni NA hodnot
+dta <- na.omit(dta0)
+```
+
+```{R}
+message("Number of lines is: ", nrow(dta0), "\n")
+```
+
+## Histogramy
+
+```{R}
+
+if (!require(patchwork)) install.packages("patchwork")
+if (!require(purrr)) install.packages("purrr")
+if (!require(ggplot2)) install.packages("ggplot2")
+library(patchwork)
+library(purrr)
+library(ggplot2)
+
+numeric_variables <- dta0[, .SD, .SDcols = names(dta0)[sapply(dta0, is.numeric) & !(names(dta0) %in% c("ID", "LDEN"))]]
+
+# mimo sloupce ID a LDEN a jen num
+histograms <- lapply(names(numeric_variables), function(var) {
+  ggplot(numeric_variables, aes_string(x = var)) +
+    geom_histogram(bins = 30, fill = "green", color = "black", alpha = 0.7) +
+    labs(title = paste("Histogram of", var), x = var, y = "Frequency") +
+    theme_minimal()
+})
+
+# slozeni histogramu
+reduce(histograms, `+`) + plot_layout(ncol = 3)
+
+```
+
+## Log-transformace
+
+```{R}
+dta$VIIRS_log <- log(dta$VIIRS + 1)
+dta$CO_log <- log(dta$CO + 1)
+dta$CH4_log <- log(dta$CH4 + 1)
+dta$HCHO_log <- log(dta$HCHO + 1)
+dta$NO2_log <- log(dta$NO2 + 1)
+
+```
+
+## Histogramy po transformaci (pouze nenulové hodnoty)
+
+```{R}
+numeric_variables <- dta[, .SD, .SDcols = names(dta)[sapply(dta, is.numeric) & !(names(dta) %in% c("ID", "LDEN"))]]
+
+# mimo sloupce ID a LDEN a jen num
+histograms <- lapply(names(numeric_variables), function(var) {
+  ggplot(numeric_variables, aes_string(x = var)) +
+    geom_histogram(bins = 30, fill = "green", color = "black", alpha = 0.7) +
+    labs(title = paste("Histogram of", var), x = var, y = "Frequency") +
+    theme_minimal()
+})
+
+# slozeni histogramu
+reduce(histograms, `+`) + plot_layout(ncol = 3)
+
+```
+
+## Boxplot
+
+S ohledem k tomu, že se jedná o kategorická data byl zvolen Boxplot namísto Scatter plot.
+
+```{R}
+numeric_variables <- colnames(dta)[sapply(dta, is.numeric)]
+numeric_variables <- setdiff(numeric_variables, c("ID","LDEN","VIIRS","CH4","NO2"))  
+
+box_plots <- lapply(numeric_variables, function(var) {
+  ggplot(dta, aes(x = as.factor(LDEN), y = .data[[var]])) +
+    geom_boxplot(outlier.color = "red", fill = "lightblue") +
+    labs(title = paste("Boxplot:", var, "vs LDEN"),
+         x = "LDEN (kategorie)",
+         y = var) +
+    theme_minimal()
+})
+
+boxplot_grid <- wrap_plots(box_plots, ncol = 5)
+boxplot_grid
+```
+
+## Statistický test relevance proměnných
+
+```{r anova-tests}
+numeric_variables <- colnames(dta)[sapply(dta, is.numeric)]
+numeric_variables <- setdiff(numeric_variables, c("ID","LDEN","VIIRS","CH4","NO2"))
+
+# ANOVA pro numericke hodnoty
+anova_results <- lapply(numeric_variables, function(var) {
+  aov_result <- aov(as.formula(paste(var, "~ as.factor(LDEN)")), data = dta)
+  list(variable = var, p_value = summary(aov_result)[[1]][["Pr(>F)"]][1])
+})
+
+anova_results_df <- do.call(rbind, lapply(anova_results, as.data.frame))
+anova_results_df <- data.frame(Variable = sapply(anova_results, `[[`, "variable"),
+                                P_Value = sapply(anova_results, `[[`, "p_value"))
+
+# filtrace (p < 0.05) - significant variables
+significant_variables <- subset(anova_results_df, P_Value < 0.05)
+print("Significant Variables Based on ANOVA:")
+print(significant_variables)
+```
+
+## Identifikace odlehlých hodnot
+
+```{R}
+detect_outliers <- function(variable) {
+  Q1 <- quantile(variable, 0.25, na.rm = TRUE)
+  Q3 <- quantile(variable, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  return(variable[variable < lower_bound | variable > upper_bound])
+}
+
+outliers <- lapply(significant_variables$Variable, function(var) {
+  list(variable = var, outliers = detect_outliers(dta[[var]]))
+})
+
+```
+
+## Boxplot signifikantních proměnných
+
+```{R}
+box_plots_significant <- lapply(significant_variables$Variable, function(var) {
+   ggplot(dta, aes(x = as.factor(LDEN), y = .data[[var]])) +
+     geom_boxplot(outlier.color = "red", fill = "lightblue") +
+     labs(title = paste("Boxplot:", var, "vs LDEN"),
+          x = "LDEN (kategorie)",
+          y = var) +
+     theme_minimal()
+})
+
+wrap_plots(box_plots_significant, ncol = 2)
+```
+
+### Statistické ukazatele signifikantních proměnných
+
+```{R}
+VIIRS_log_no_outliers <- dta$VIIRS_log[dta$VIIRS_log %in% detect_outliers(dta$VIIRS_log) == FALSE]
+summary(VIIRS_log_no_outliers)
+
+```
+
+```{R}
+L8_NDVI_Max_no_outliers <- dta$L8_NDVI_Max[dta$L8_NDVI_Max %in% detect_outliers(dta$L8_NDVI_Max) == FALSE]
+summary(L8_NDVI_Max_no_outliers)
+
+```
+
+```{R}
+S2_ISA_no_outliers <- dta$S2_ISA[dta$S2_ISA %in% detect_outliers(dta$S2_ISA) == FALSE]
+summary(S2_ISA_no_outliers)
+
+```
+
+```{R}
+S2_NDBI_no_outliers <- dta$S2_NDBI[dta$S2_NDBI %in% detect_outliers(dta$S2_NDBI) == FALSE]
+summary(S2_NDBI_no_outliers)
+
+```
+
+## Korelační matice
+
+Korelační matice zobrazuje sílu a směr vztahů mezi numerickými proměnnými. Hodnoty korelace (rr) se pohybují mezi -1 a 1:
+
+r=1r=1: Silná pozitivní korelace (obě proměnné rostou společně). r=−1r=−1: Silná negativní korelace (jedna proměnná roste, druhá klesá). r≈0r≈0: Žádný nebo slabý vztah mezi proměnnými.
+
+K interpretaci je důležité zaměřit se na hodnoty r\>0.5r\>0.5 (silná pozitivní korelace) nebo r\<−0.5r\<−0.5 (silná negativní korelace), protože slabé korelace jsou často nezajímavé.
+
+```{R}
+if (!require(corrplot)) install.packages("corrplot")
+library(corrplot)
+
+dtaNum <- dta[, .SD, .SDcols = sapply(dta, is.numeric)]
+
+correlation_matrix <- cor(dtaNum, use = "complete.obs") 
+correlation_matrix
+
+corrplot(correlation_matrix, method = "color", addCoef.col = "black", tl.col = "black", tl.srt = 45)
+
+```
+
+```{R}
+# korelacni matice jen pro num hodnoty
+dtaNum <- dta[, .SD, .SDcols = sapply(dta, is.numeric)]
+correlation_matrix <- cor(dtaNum, use = "complete.obs")
+
+# filtrace dle korelace s LDEN
+strong_correlations <- correlation_matrix["LDEN", ]
+selected_variables <- names(strong_correlations[abs(strong_correlations) > 0.5 & names(strong_correlations) != "LDEN"])
+
+cat("Variables with correlation stronger than 0.5 to LDEN:\n")
+print(selected_variables)
+
+```
+
+# Uložení výstupních dat (upravených)
+
+```{R}
+library(data.table)
+
+fwrite(dta, "dta.csv")
+write.csv(dta, "dta.csv", row.names = FALSE)
+
+```
