@@ -16,7 +16,7 @@ Veškeré mapové výstupy a ostatní přílohy k BP [Přílohy k BP](https://gi
 ## DP Hluková mapa odvozená ze satelitních dat
 
 ### Cíle diplomové práce práce
-Cílem práce je vytvořit model, který bude predikovat míru hluku na základě nepřímého měření satelitními systémy dálkového průzkumu Země za využití dat ze SHM 2022.
+Práce se zabývá možností tvorby modelu jenž by predikovat hlukové hladiny na základě dat z nepřímého měření v podobě satelitních dat (Landsat 8, MODIS, Sentinel 2, Sentinel 5P, VIIRS). Model pro trénování hluku využije data ze Strategického hlukového mapování z roku 2022 (aglomerace, silnice, železnice, letiště, průmyslové oblasti).
 
 ### Výstupy práce
 Popis kódu pro stažení dat je popsán v [Colab](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown_final.ipynb).</p>
