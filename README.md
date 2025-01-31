@@ -11,7 +11,7 @@ Popis kódu pro bakalářskou práci je v Pythonu v souboru [Model pro BP](https
 Veškeré mapové výstupy a ostatní přílohy k BP [Přílohy k BP](https://github.com/LenkaMikova/NoisMaps/edit/main/BP_SHM_3D_prilohy_FINAL.pdf) </p>
 
 
-> **TIP:** [StoryMaps](https://storymaps.arcgis.com/stories/f9a9ed9471db4ff794f17475eac44003) k bakalářské práci</p>
+> **TIP:** [StoryMaps BP](https://storymaps.arcgis.com/stories/f9a9ed9471db4ff794f17475eac44003) k bakalářské práci</p>
 
 ## DP Hluková mapa odvozená ze satelitních dat
 
@@ -24,3 +24,7 @@ Práce s daty [Projekt v R](https://github.com/LenkaMikova/NoisMaps/blob/main/DP
 [Sloučení dat](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.qmd), [analýzu a úpravu dat](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_02.qmd) a modely [Random Forest](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_03.qmd), [Gradient Boosting](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_04.qmd) a [neuronové sítě](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_05.qmd).</p>
 Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
 [Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
+
+
+
+> **TIP:** [StoryMaps DP](https://storymaps.arcgis.com/stories/3dbe9c7af61e4e5ca5b43ddbcbe7fee5/) k diplomové práci</p>
