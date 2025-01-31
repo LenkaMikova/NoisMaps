@@ -20,6 +20,7 @@ Práce se zabývá možností tvorby modelu jenž by predikovat hlukové hladiny
 
 ### Výstupy práce
 Popis kódu pro stažení dat je popsán v [Colab](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown_final.ipynb).</p>
-Práce s daty [Model v R](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
+Práce s daty [Projekt v R](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.Rproj)</p>
+Sloučení dat ([DP_hluk](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.qmd)), analýzu a úpravu dat ([DP_hluk_02](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_02.qmd)) a modely Random Forest ([DP_hluk_03](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_03.qmd)), Gradient Boosting ([DP_hluk_04](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_04.qmd)) a neuronové sítě ([DP_hluk_05](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_05.qmd)).</p>
 Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
 [Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
