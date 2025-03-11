@@ -28,7 +28,7 @@ library(pkgconfig)
 Vstupní data jsou z několika různých zdrojů - získány byly prostřednictvím Python skriptu stažením hodnot ve vybraných 1400 bodech z Google Earth Engine.
 
 ```{R}
-input_dir <- "D:/Skola/+M-PVZP/+DP/inputdata"
+input_dir <- "E:/Skola/+M-PVZP/+DP/inputdata"
 
 message("Set input director: ", input_dir, "\n")
 

@@ -17,9 +17,9 @@ require(smotefamily)
 
 ```{R}
 #| echo: false
-setwd("D:/Skola/+M-PVZP/+DP/inputdata/+zpracovaniDat/2022_all")
-input_dir <- "D:/Skola/+M-PVZP/+DP/inputdata/+zpracovaniDat/2022_all"
-dta0 <- fread("inputdata_all_2022.csv")
+setwd("E:/Skola/+M-PVZP/+DP/model/DP_hluk")
+input_dir <- "F:/Skola/+M-PVZP/+DP/model/DP_hluk"
+dta0 <- fread("dta.csv")
 
 message("Data uploaded successfully.")
 
@@ -51,17 +51,15 @@ library(ggplot2)
 
 numeric_variables <- dta0[, .SD, .SDcols = names(dta0)[sapply(dta0, is.numeric) & !(names(dta0) %in% c("ID", "LDEN"))]]
 
-# mimo sloupce ID a LDEN a jen num
 histograms <- lapply(names(numeric_variables), function(var) {
   ggplot(numeric_variables, aes_string(x = var)) +
     geom_histogram(bins = 30, fill = "green", color = "black", alpha = 0.7) +
-    labs(title = paste("Histogram of", var), x = var, y = "Frequency") +
+    #labs(title = paste("Histogram of", var), x = var, y = "Frequency") +
     theme_minimal()
 })
 
 # slozeni histogramu
 reduce(histograms, `+`) + plot_layout(ncol = 3)
-
 ```
 
 ## Log-transformace
@@ -73,25 +71,45 @@ dta$CH4_log <- log(dta$CH4 + 1)
 dta$HCHO_log <- log(dta$HCHO + 1)
 dta$NO2_log <- log(dta$NO2 + 1)
 
+
 ```
 
 ## Histogramy po transformaci (pouze nenulové hodnoty)
 
 ```{R}
-numeric_variables <- dta[, .SD, .SDcols = names(dta)[sapply(dta, is.numeric) & !(names(dta) %in% c("ID", "LDEN"))]]
+library(ggplot2)
+library(tidyr)
+library(patchwork)
 
-# mimo sloupce ID a LDEN a jen num
-histograms <- lapply(names(numeric_variables), function(var) {
-  ggplot(numeric_variables, aes_string(x = var)) +
+numeric_variables <- c("L8_ISA", "S2_ISA", "L8_MNDWI", "S2_MNDWI",
+                       "L8_NDBI", "S2_NDBI","L8_UI", "S2_UI",
+                       "L8_NDVI_Median", "L8_NDVI_Max","S2_NDVI_Median",  "LST",
+                       "CO", "CO_log","HCHO", "HCHO_log",
+                       "CH4", "CH4_log", "NO2", "NO2_log", 
+                       "O3", "SO2", "VIIRS","VIIRS_log")
+
+dta_long <- pivot_longer(dta, cols = all_of(numeric_variables), 
+                         names_to = "Variable", values_to = "Value")
+
+variable_groups <- split(numeric_variables, ceiling(seq_along(numeric_variables) / 4))
+
+histogram_list <- lapply(variable_groups, function(vars) {
+  dta_subset <- dta_long[dta_long$Variable %in% vars, ]
+  
+  ggplot(dta_subset, aes(x = Value, fill = as.factor(LDEN))) +  #
     geom_histogram(bins = 30, fill = "green", color = "black", alpha = 0.7) +
-    labs(title = paste("Histogram of", var), x = var, y = "Frequency") +
+    facet_wrap(~ Variable, scales = "free_x", ncol = 2) +  #
+    labs(x = "Hodnota", y = "Frekvence", fill = "LDEN") +
     theme_minimal()
 })
 
-# slozeni histogramu
-reduce(histograms, `+`) + plot_layout(ncol = 3)
+for (plot in histogram_list) {
+  print(plot)
+}
+
 
 ```
+
 
 ## Boxplot
 
@@ -99,12 +117,13 @@ S ohledem k tomu, že se jedná o kategorická data byl zvolen Boxplot namísto 
 
 ```{R}
 numeric_variables <- colnames(dta)[sapply(dta, is.numeric)]
-numeric_variables <- setdiff(numeric_variables, c("ID","LDEN","VIIRS","CH4","NO2"))  
+#numeric_variables <- setdiff(numeric_variables, c("ID","LDEN","VIIRS","CH4","NO2")) 
+#numeric_variables <- setdiff(numeric_variables, c("ID","LDEN",))
 
 box_plots <- lapply(numeric_variables, function(var) {
   ggplot(dta, aes(x = as.factor(LDEN), y = .data[[var]])) +
     geom_boxplot(outlier.color = "red", fill = "lightblue") +
-    labs(title = paste("Boxplot:", var, "vs LDEN"),
+    labs(#title = paste("Boxplot:", var, "vs LDEN"),
          x = "LDEN (kategorie)",
          y = var) +
     theme_minimal()
@@ -114,84 +133,295 @@ boxplot_grid <- wrap_plots(box_plots, ncol = 5)
 boxplot_grid
 ```
 
-## Statistický test relevance proměnných
+```{R}
+library(ggplot2)
+library(tidyr)
+library(patchwork)
 
-```{r anova-tests}
-numeric_variables <- colnames(dta)[sapply(dta, is.numeric)]
-numeric_variables <- setdiff(numeric_variables, c("ID","LDEN","VIIRS","CH4","NO2"))
+numeric_variables <- c("L8_ISA", "S2_ISA", "L8_MNDWI", "S2_MNDWI",
+                       "L8_NDBI", "S2_NDBI","L8_UI", "S2_UI",
+                        "L8_NDVI_Median", "L8_NDVI_Max","S2_NDVI_Median",  "LST",
+                       "CO", "CO_log","HCHO", "HCHO_log",
+                       "CH4", "CH4_log", "NO2", "NO2_log", 
+                       "O3", "SO2", "VIIRS","VIIRS_log")
 
-# ANOVA pro numericke hodnoty
-anova_results <- lapply(numeric_variables, function(var) {
-  aov_result <- aov(as.formula(paste(var, "~ as.factor(LDEN)")), data = dta)
-  list(variable = var, p_value = summary(aov_result)[[1]][["Pr(>F)"]][1])
+dta_long <- pivot_longer(dta, cols = all_of(numeric_variables), 
+                         names_to = "Variable", values_to = "Value")
+
+variable_groups <- split(numeric_variables, ceiling(seq_along(numeric_variables) / 4))
+
+plot_list <- lapply(variable_groups, function(vars) {
+  dta_subset <- dta_long[dta_long$Variable %in% vars, ]
+  
+  ggplot(dta_subset, aes(x = as.factor(LDEN), y = Value)) +
+    geom_boxplot(outlier.color = "red", fill = "lightblue") +
+    facet_wrap(~ Variable, scales = "free_y", ncol = 2) +  # 2 sloupce
+    labs(#title = "Boxploty proměnných vs LDEN",
+         x = "LDEN (kategorie)", y = "Hodnota") +
+    theme_minimal()
 })
 
-anova_results_df <- do.call(rbind, lapply(anova_results, as.data.frame))
-anova_results_df <- data.frame(Variable = sapply(anova_results, `[[`, "variable"),
-                                P_Value = sapply(anova_results, `[[`, "p_value"))
-
-# filtrace (p < 0.05) - significant variables
-significant_variables <- subset(anova_results_df, P_Value < 0.05)
-print("Significant Variables Based on ANOVA:")
-print(significant_variables)
+for (plot in plot_list) {
+  print(plot)
+}
 ```
 
 ## Identifikace odlehlých hodnot
 
+Funkce pro identifikaci odlehlých hodnot v každé proměnné.
+
 ```{R}
-detect_outliers <- function(variable) {
-  Q1 <- quantile(variable, 0.25, na.rm = TRUE)
-  Q3 <- quantile(variable, 0.75, na.rm = TRUE)
-  IQR <- Q3 - Q1
-  lower_bound <- Q1 - 1.5 * IQR
-  upper_bound <- Q3 + 1.5 * IQR
-  return(variable[variable < lower_bound | variable > upper_bound])
+find_outliers <- function(data, column) {
+  Q1 <- quantile(data[[column]], 0.25, na.rm = TRUE)
+  Q3 <- quantile(data[[column]], 0.75, na.rm = TRUE)
+  IQR_value <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR_value
+  upper_bound <- Q3 + 1.5 * IQR_value
+  
+  # Výběr outlierů
+  outliers <- data[data[[column]] < lower_bound | data[[column]] > upper_bound, ]
+  
+  return(outliers)
 }
 
-outliers <- lapply(significant_variables$Variable, function(var) {
-  list(variable = var, outliers = detect_outliers(dta[[var]]))
+outliers_list <- lapply(names(dta)[sapply(dta, is.numeric)], function(col) find_outliers(dta, col))
+
+names(outliers_list) <- names(dta)[sapply(dta, is.numeric)]
+
+```
+
+## Grubbsův test (test na odlehlé hodnoty v normálním rozdělení)
+
+```{R}
+library(outliers)
+
+apply_grubbs <- function(column) {
+  if (length(na.omit(column)) > 2) {  
+    return(grubbs.test(column))
+  } else {
+    return(NA) 
+  }
+}
+
+grubbs_results <- lapply(dta[, sapply(dta, is.numeric), with = FALSE], apply_grubbs)
+grubbs_results
+```
+
+### Jitter plot
+
+```{R}
+library(ggplot2)
+library(patchwork)
+
+# Seznam proměnných s outliery
+outlier_vars <- c("L8_ISA", "L8_MNDWI", "L8_NDBI", "L8_NDVI_Max",
+                  "S2_ISA", "S2_MNDWI", "S2_NDVI_Median", "S2_UI",
+                  "CH4", "O3", "VIIRS", "CH4_log")
+
+# Rozdělení proměnných do skupin po čtyřech (pro 2x2 mřížku)
+variable_groups <- split(outlier_vars, ceiling(seq_along(outlier_vars) / 4))
+
+# Vytvoření jitter plotů pro každou skupinu proměnných
+jitter_list <- lapply(variable_groups, function(vars) {
+  plots <- lapply(vars, function(var) {
+    ggplot(dta, aes(x = as.factor(LDEN), y = .data[[var]])) +
+      geom_boxplot(outlier.shape = NA, fill = "lightblue", alpha = 0.5) +
+      geom_jitter(width = 0.2, color = "red", alpha = 0.5) +
+      labs(#title = paste(var, "vs LDEN"), 
+           x = "LDEN (kategorie)", y = var) +
+      theme_minimal()
+  })
+  
+  # Kombinace 4 jitter plotů do jednoho grafu (2x2)
+  wrap_plots(plots, ncol = 2, nrow = 2)
 })
 
-```
+# Zobrazení jitter plotů postupně
+for (jitter in jitter_list) {
+  print(jitter)
+}
 
-## Boxplot signifikantních proměnných
+```
+## Ulozeni dta bez outliers
 
 ```{R}
-box_plots_significant <- lapply(significant_variables$Variable, function(var) {
-   ggplot(dta, aes(x = as.factor(LDEN), y = .data[[var]])) +
-     geom_boxplot(outlier.color = "red", fill = "lightblue") +
-     labs(title = paste("Boxplot:", var, "vs LDEN"),
-          x = "LDEN (kategorie)",
-          y = var) +
-     theme_minimal()
+dta_no_outliers <- dta
+
+for (var in names(outliers_list)) {
+  outlier_values <- outliers_list[[var]]
+  
+  dta_no_outliers <- dta_no_outliers[!(dta_no_outliers[[var]] %in% outlier_values), ]
+}
+
+cat("Počet odstraněných řádků:", nrow(dta) - nrow(dta_no_outliers), "\n")
+
+head(dta_no_outliers)
+
+```
+
+
+```{R}
+library(data.table)
+
+# Ujistíme se, že dataset je `data.table`
+dta <- as.data.table(dta)
+
+# Výběr numerických proměnných (bez ID a LDEN)
+numeric_vars <- names(dta)[sapply(dta, is.numeric) & !(names(dta) %in% c("ID", "LDEN"))]
+
+# Ověření proměnných, které mají platná data
+valid_vars <- numeric_vars[colSums(!is.na(dta[, ..numeric_vars])) > 0]
+numeric_vars <- dta[, ..valid_vars]
+
+for (col in zero_var_cols) {
+  numeric_vars[[col]] <- numeric_vars[[col]] + rnorm(nrow(numeric_vars), mean = 0, sd = 1e-6)
+}
+
+
+# Ověření, že máme dostatek validních sloupců
+if (ncol(numeric_vars) < 2) {
+  stop("Chyba: Nedostatek platných numerických proměnných pro výpočet Mahalanobisovy vzdálenosti.")
+}
+
+for (var in names(outliers_list)) {
+  outlier_values <- outliers_list[[var]]
+  dta_no_outliers <- dta_no_outliers[!(dta_no_outliers[[var]] %in% outlier_values), ]
+}
+
+cat("Počet odstraněných řádků:", nrow(dta) - nrow(dta_no_outliers), "\n")
+
+# Ověření, zda data jsou v pořádku
+head(dta_no_outliers)
+
+
+```
+
+
+## ANOVA vybranych proměnných
+
+```{R}
+anova_vars <- c("L8_NDVI_Max", "S2_NDVI_Median", "L8_ISA", "S2_ISA", "CH4_log", "VIIRS")
+
+# Spuštění ANOVA pro každou proměnnou
+anova_results <- lapply(anova_vars, function(var) {
+  model <- aov(dta_no_outliers[[var]] ~ as.factor(dta_no_outliers$LDEN), data = dta_no_outliers)
+  summary(model)
 })
 
-wrap_plots(box_plots_significant, ncol = 2)
+# Výpis výsledků
+names(anova_results) <- anova_vars
+anova_results
 ```
 
-### Statistické ukazatele signifikantních proměnných
+### Boxploty pro vybrane promenné (obsahují stále odlehlé hodnoty - nebyly všechny odstraněny)
 
 ```{R}
-VIIRS_log_no_outliers <- dta$VIIRS_log[dta$VIIRS_log %in% detect_outliers(dta$VIIRS_log) == FALSE]
-summary(VIIRS_log_no_outliers)
+boxplot_ndvi <- ggplot(dta_no_outliers, aes(x = as.factor(LDEN), y = L8_NDVI_Max)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") +
+  labs(#title = "Boxplot: L8_NDVI_Max vs LDEN",
+       x = "LDEN (kategorie)", y = "L8_NDVI_Max") +
+  theme_minimal()
+
+boxplot_isa <- ggplot(dta_no_outliers, aes(x = as.factor(LDEN), y = S2_ISA)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") +
+  labs(#title = "Boxplot: S2_ISA vs LDEN",
+       x = "LDEN (kategorie)", y = "S2_ISA") +
+  theme_minimal()
+
+boxplot_viirs <- ggplot(dta_no_outliers, aes(x = as.factor(LDEN), y = VIIRS)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightblue") +
+  labs(#title = "Boxplot: VIIRS vs LDEN",
+       x = "LDEN (kategorie)", y = "VIIRS") +
+  theme_minimal()
+
+# Zobrazení boxplotů vedle sebe
+boxplot_ndvi + boxplot_isa + boxplot_viirs
+```
+### Kontrola outliers
+
+```{R}
+summary(dta_no_outliers[, .(L8_NDVI_Max, S2_ISA, VIIRS)])
+
+```
+```{R}
+for (var in names(outliers_list)) {
+  print(paste("Odstraňuji odlehlé hodnoty pro:", var))
+  print(outliers_list[[var]])
+}
 
 ```
 
+#### Uložení dat bez outliers
+
 ```{R}
-L8_NDVI_Max_no_outliers <- dta$L8_NDVI_Max[dta$L8_NDVI_Max %in% detect_outliers(dta$L8_NDVI_Max) == FALSE]
-summary(L8_NDVI_Max_no_outliers)
+# Vytvoření nové kopie dat bez odlehlých hodnot
+dta_clean <- copy(dta_no_outliers)  
+
+# Odstranění outlierů
+for (var in names(outliers_list)) {
+  outlier_values <- outliers_list[[var]]
+  
+  # Filtrujeme dataset tak, aby neobsahoval hodnoty z outliers_list
+  dta_clean <- dta_clean[!(dta_clean[[var]] %in% outlier_values), ]
+}
+
+# Ověření, kolik řádků bylo odstraněno
+cat("Počet odstraněných řádků:", nrow(dta_no_outliers) - nrow(dta_clean), "\n")
+
+# Ověření souhrnných statistik
+summary(dta_clean[, .(L8_NDVI_Max, S2_ISA, VIIRS)])
+
+# Aktualizace datasetu
+dta_no_outliers <- dta_clean
 
 ```
 
+#### Odstranění outliers
+
 ```{R}
-S2_ISA_no_outliers <- dta$S2_ISA[dta$S2_ISA %in% detect_outliers(dta$S2_ISA) == FALSE]
-summary(S2_ISA_no_outliers)
+remove_outliers_iqr <- function(data, cols) {
+  for (col in cols) {
+    Q1 <- quantile(data[[col]], 0.25, na.rm = TRUE)
+    Q3 <- quantile(data[[col]], 0.75, na.rm = TRUE)
+    IQR <- Q3 - Q1
+    lower_bound <- Q1 - 1.5 * IQR
+    upper_bound <- Q3 + 1.5 * IQR
+    data <- data[data[[col]] >= lower_bound & data[[col]] <= upper_bound, ]
+  }
+  return(data)
+}
+
+# Použití na vybrané proměnné
+dta_no_outliers <- remove_outliers_iqr(dta_no_outliers, c("L8_NDVI_Max", "S2_ISA", "VIIRS"))
+
+# Ověření nových souhrnných statistik
+summary(dta_no_outliers[, .(L8_NDVI_Max, S2_ISA, VIIRS)])
 
 ```
 
+#### Boxploty pro vybrane promenné (neobsahují odlehlé hodnoty) 
+
 ```{R}
-S2_NDBI_no_outliers <- dta$S2_NDBI[dta$S2_NDBI %in% detect_outliers(dta$S2_NDBI) == FALSE]
-summary(S2_NDBI_no_outliers)
+boxplot_ndvi <- ggplot(dta_no_outliers, aes(x = as.factor(LDEN), y = L8_NDVI_Max)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(#title = "Boxplot: L8_NDVI_Max vs LDEN",
+       x = "LDEN (kategorie)", y = "L8_NDVI_Max") +
+  theme_minimal()
+
+boxplot_isa <- ggplot(dta_no_outliers, aes(x = as.factor(LDEN), y = S2_ISA)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(#title = "Boxplot: S2_ISA vs LDEN",
+       x = "LDEN (kategorie)", y = "S2_ISA") +
+  theme_minimal()
+
+boxplot_viirs <- ggplot(dta_no_outliers, aes(x = as.factor(LDEN), y = VIIRS)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(#title = "Boxplot: VIIRS vs LDEN",
+       x = "LDEN (kategorie)", y = "VIIRS") +
+  theme_minimal()
+
+# Zobrazení boxplotů vedle sebe
+boxplot_ndvi + boxplot_isa + boxplot_viirs
 
 ```
 
@@ -204,29 +434,73 @@ r=1r=1: Silná pozitivní korelace (obě proměnné rostou společně). r=−1r=
 K interpretaci je důležité zaměřit se na hodnoty r\>0.5r\>0.5 (silná pozitivní korelace) nebo r\<−0.5r\<−0.5 (silná negativní korelace), protože slabé korelace jsou často nezajímavé.
 
 ```{R}
-if (!require(corrplot)) install.packages("corrplot")
-library(corrplot)
+# Načtení potřebných balíčků
+library(ggplot2)
+library(reshape2)  # Pro transformaci dat
+library(ggcorrplot)  # Pro vizualizaci korelace
 
-dtaNum <- dta[, .SD, .SDcols = sapply(dta, is.numeric)]
+# Výběr proměnných pro analýzu
+selected_vars <- dta_no_outliers[, .(L8_NDVI_Max, S2_ISA, VIIRS)]
 
-correlation_matrix <- cor(dtaNum, use = "complete.obs") 
-correlation_matrix
+# Výpočet Pearsonovy korelační matice
+cor_matrix_pearson <- cor(selected_vars, method = "pearson", use = "complete.obs")
 
-corrplot(correlation_matrix, method = "color", addCoef.col = "black", tl.col = "black", tl.srt = 45)
+# Výpočet Spearmanovy korelační matice (odolnější vůči odlehlým hodnotám)
+cor_matrix_spearman <- cor(selected_vars, method = "spearman", use = "complete.obs")
+
+# Funkce pro vykreslení heatmapy
+plot_correlation_heatmap <- function(cor_matrix, title) {
+  ggcorrplot(cor_matrix, 
+             type = "lower", 
+             lab = TRUE, 
+             lab_size = 5, 
+             tl.cex = 10, 
+             tl.srt = 45, 
+             colors = c("#6D9EC1", "white", "#E46726"),
+             title = title) +
+    theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+}
+
+# Zobrazení Pearsonovy korelační heatmapy
+plot_correlation_heatmap(cor_matrix_pearson, "Pearsonova korelační matice")
+
+# Zobrazení Spearmanovy korelační heatmapy
+plot_correlation_heatmap(cor_matrix_spearman, "Spearmanova korelační matice")
 
 ```
 
+
 ```{R}
-# korelacni matice jen pro num hodnoty
-dtaNum <- dta[, .SD, .SDcols = sapply(dta, is.numeric)]
-correlation_matrix <- cor(dtaNum, use = "complete.obs")
+if (!require(corrplot)) install.packages("corrplot")
+library(corrplot)
+library(data.table)
 
-# filtrace dle korelace s LDEN
-strong_correlations <- correlation_matrix["LDEN", ]
-selected_variables <- names(strong_correlations[abs(strong_correlations) > 0.5 & names(strong_correlations) != "LDEN"])
+# Výběr proměnných pro analýzu
+selected_vars <- dta_no_outliers[, .(L8_NDVI_Max, S2_ISA, VIIRS)]
 
-cat("Variables with correlation stronger than 0.5 to LDEN:\n")
-print(selected_variables)
+# Výpočet korelační matice (Pearsonova a Spearmanova)
+cor_matrix_pearson <- cor(selected_vars, method = "pearson", use = "complete.obs")
+cor_matrix_spearman <- cor(selected_vars, method = "spearman", use = "complete.obs")
+
+# Vykreslení korelační matice pomocí corrplot
+par(mfrow = c(1, 2))  # Dvě grafické oblasti vedle sebe
+
+# Pearsonova korelační matice
+corrplot(cor_matrix_pearson, method = "color", 
+         #col = colorRampPalette(c("blue", "white", "red"))(200), 
+         addCoef.col = "black", # pridani hodnoty korelace
+         tl.col = "black", tl.cex = 1.2, tl.srt = 45, # nastaveni popisku
+         cl.pos = "b", # umisteni legendy
+         title = "Pearsonova korelační matice", mar = c(0, 0, 2, 0))
+
+# Spearmanova korelační matice
+corrplot(cor_matrix_spearman, method = "color", 
+         #col = colorRampPalette(c("blue", "white", "red"))(200), 
+         addCoef.col = "black", 
+         tl.col = "black", tl.cex = 1.2, tl.srt = 45,
+         cl.pos = "b",
+         title = "Spearmanova korelační matice", mar = c(0, 0, 2, 0))
+
 
 ```
 
@@ -235,7 +509,7 @@ print(selected_variables)
 ```{R}
 library(data.table)
 
-fwrite(dta, "dta.csv")
-write.csv(dta, "dta.csv", row.names = FALSE)
+fwrite(dta_no_outliers, "dta_noOut.csv")
+write.csv(dta_no_outliers, "dta_noOut.csv", row.names = FALSE)
 
 ```

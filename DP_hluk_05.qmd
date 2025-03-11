@@ -6,15 +6,16 @@ jupyter: python3
 ---
 
 ```{r}
-
 knitr::opts_chunk$set(echo = TRUE)
 if (!require(neuralnet)) install.packages("neuralnet")
 if (!require(caret)) install.packages("caret")
 if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(data.table)) install.packages("data.table")
 
 library(neuralnet)
 library(caret)
 library(ggplot2)
+library(data.table)
 ```
 
 # Neuronové sítě pro predikci LDEN
@@ -22,96 +23,145 @@ library(ggplot2)
 ## Načtení dat
 
 ```{r data-loading, include=FALSE}
-
 setwd("F:/Skola/+M-PVZP/+DP/model/DP_hluk")
 input_dir <- "F:/Skola/+M-PVZP/+DP/model/DP_hluk"
-dtaM <- fread("dta.csv")  
+dtaM <- fread("dta_noOut.csv")  
 
-dtaM <- dtaM[, !c("ID", "noiseLevel", "sourceLDEN"), with = FALSE]
+selected_variables <- c("L8_NDVI_Max", "S2_ISA", "VIIRS","LDEN")
+dtaM <- dtaM[, ..selected_variables]
+```
 
-# Normalizace dat
+## Normalizace dat
+
+```{r}
+# min/max pro denormalizaci
+min_ldn <- min(dtaM$LDEN)
+max_ldn <- max(dtaM$LDEN)
+
+# Normalizace dat (0-1 škála)
 normalize <- function(x) {
   return((x - min(x)) / (max(x) - min(x)))
 }
 dtaM_norm <- as.data.frame(lapply(dtaM, normalize))
 ```
 
+
 ## Rozdělení vstupních dat
 
 ```{r}
 set.seed(123)
 n <- nrow(dtaM_norm)
-train_index <- sample(1:n, 0.7 * n)  # 70% training data
+train_index <- sample(1:n, 0.7 * n)  
 remaining_index <- setdiff(1:n, train_index)
-valid_index <- sample(remaining_index, 0.5 * length(remaining_index))  # 15% validation data
-test_index <- setdiff(remaining_index, valid_index)  # 15% test data
+valid_index <- sample(remaining_index, 0.5 * length(remaining_index))  
+test_index <- setdiff(remaining_index, valid_index)
 
 train_data <- dtaM_norm[train_index, ]
 valid_data <- dtaM_norm[valid_index, ]
 test_data <- dtaM_norm[test_index, ]
 ```
 
-## Trénink neuronové sítě
+## Optimalizace hyperparametrů
 
-```{r nn-training}
-# def neural network (NN)
-features <- setdiff(names(train_data), "LDEN")
-nn_formula <- as.formula(paste("LDEN ~", paste(features, collapse = " + ")))
+```{r}
+hidden_layers <- list(c(5, 3), c(10, 5), c(20, 10, 5), c(10, 5, 3), c(20, 10, 5), c(30, 15, 5))
 
-# trenovani NN
-set.seed(123)
-nn_model <- neuralnet(
-  formula = nn_formula,
-  data = train_data,   
-  hidden = c(20, 10, 5),     #nefungovalo c(5, 3), c(10, 5)
-  linear.output = TRUE,
-  stepmax = 1e6  # zvyseni maxi poctu iteraci
-)
+# Funkce na vyhodnocení neuronové sítě
+evaluate_nn <- function(hidden_structure) {
+  set.seed(123)
+  nn_model <- neuralnet(
+    LDEN ~ ., 
+    data = train_data,  
+    hidden = hidden_structure, 
+    linear.output = TRUE,
+    stepmax = 1e6  
+  )
+  
+  test_predicted <- compute(nn_model, test_data[, setdiff(names(test_data), "LDEN")])$net.result
 
-plot(nn_model)
+  # Oprava denormalizace
+  denormalize <- function(x, min_val, max_val) {
+    return(x * (max_val - min_val) + min_val)
+  }
+
+  test_predicted <- denormalize(test_predicted, min_ldn, max_ldn)
+  actual <- denormalize(test_data$LDEN, min_ldn, max_ldn)  # Oprava denormalizace skutečných hodnot!
+
+  # Výpočet metrik
+  rmse <- sqrt(mean((test_predicted - actual)^2))
+  mae <- mean(abs(test_predicted - actual))
+  rsq <- cor(test_predicted, actual)^2
+
+  return(list(model = nn_model, rmse = rmse, mae = mae, rsq = rsq))
+}
+
+# Otestování různých struktur sítě
+results <- lapply(hidden_layers, evaluate_nn)
+
+# Výběr nejlepšího modelu
+best_model_index <- which.min(sapply(results, function(x) x$rmse))
+best_model <- results[[best_model_index]]$model
+
+cat("Nejlepší struktura neuronové sítě:", hidden_layers[[best_model_index]], "\n")
+cat("RMSE nejlepšího modelu:", results[[best_model_index]]$rmse, "\n")
 ```
 
 ## Vyhodnocení modelu
 
 ```{r nn-evaluation}
-# predikce - test data
-test_predicted <- compute(nn_model, test_data[, features])$net.result
-actual <- test_data$LDEN
+train_predicted <- compute(best_model, train_data[, setdiff(names(train_data), "LDEN")])$net.result
+test_predicted <- compute(best_model, test_data[, setdiff(names(test_data), "LDEN")])$net.result
+valid_predicted <- compute(best_model, valid_data[, setdiff(names(valid_data), "LDEN")])$net.result
 
-# Denormalizace predikce 
-denormalize <- function(x, min_val, max_val) {
-  return(x * (max_val - min_val) + min_val)
-}
+train_predicted <- denormalize(train_predicted, min_ldn, max_ldn)
+test_predicted <- denormalize(test_predicted, min_ldn, max_ldn)
+valid_predicted <- denormalize(valid_predicted, min_ldn, max_ldn)
 
-test_predicted <- denormalize(
-  test_predicted,
-  min(dtaM$LDEN),
-  max(dtaM$LDEN)
-)
+train_actual <- denormalize(train_data$LDEN, min_ldn, max_ldn)
+test_actual <- denormalize(test_data$LDEN, min_ldn, max_ldn)
+valid_actual <- denormalize(valid_data$LDEN, min_ldn, max_ldn)
 
-# vypocet metrik
-rmse <- sqrt(mean((test_predicted - actual)^2))
-mae <- mean(abs(test_predicted - actual))
-rsq <- cor(test_predicted, actual)^2
+# ýpočet metrik
+train_rmse <- sqrt(mean((train_predicted - train_actual)^2))
+train_mae <- mean(abs(train_predicted - train_actual))
+train_rsq <- cor(train_predicted, train_actual)^2
 
-cat("RMSE on Test Data:", rmse, "\n")
-cat("MAE on Test Data:", mae, "\n")
-cat("R-squared on Test Data:", rsq, "\n")
+cat("RMSE na trénovacích datech:", train_rmse, "\n")
+cat("MAE na trénovacích datech:", train_mae, "\n")
+cat("R-squared na trénovacích datech:", train_rsq, "\n\n")
 
-valid_predicted <- compute(nn_model, valid_data[, features])$net.result
-valid_actual <- valid_data$LDEN
+test_rmse <- sqrt(mean((test_predicted - test_actual)^2))
+test_mae <- mean(abs(test_predicted - test_actual))
+test_rsq <- cor(test_predicted, test_actual)^2
 
-valid_predicted <- denormalize(
-  valid_predicted,
-  min(dtaM$LDEN),
-  max(dtaM$LDEN)
-)
+cat("RMSE na testovacích datech:", test_rmse, "\n")
+cat("MAE na testovacích datech:", test_mae, "\n")
+cat("R-squared na testovacích datech:", test_rsq, "\n\n")
 
 valid_rmse <- sqrt(mean((valid_predicted - valid_actual)^2))
 valid_mae <- mean(abs(valid_predicted - valid_actual))
 valid_rsq <- cor(valid_predicted, valid_actual)^2
 
-cat("RMSE on Validation Data:", valid_rmse, "\n")
-cat("MAE on Validation Data:", valid_mae, "\n")
-cat("R-squared on Validation Data:", valid_rsq, "\n")
+cat("RMSE na validačních datech:", valid_rmse, "\n")
+cat("MAE na validačních datech:", valid_mae, "\n")
+cat("R-squared na validačních datech:", valid_rsq, "\n")
 ```
+## Kontrola rozsahu predikce
+
+```{r}
+summary(train_predicted)
+summary(train_actual)
+
+summary(test_predicted)
+summary(test_actual)
+
+summary(valid_predicted)
+summary(valid_actual)
+```
+
+
+```{r}
+plot(best_model, rep = "best")
+
+```
+

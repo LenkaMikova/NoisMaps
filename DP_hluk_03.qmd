@@ -31,16 +31,24 @@ library(ranger)
 ## Načtení dat
 
 ```{r data-loading}
-setwd("F:/Skola/+M-PVZP/+DP/model/DP_hluk")
+setwd("E:/Skola/+M-PVZP/+DP/model/DP_hluk")
 input_dir <- "F:/Skola/+M-PVZP/+DP/model/DP_hluk"
-dtaM <- fread("dta.csv")
+dtaM <- fread("dta_noOut.csv")
 ```
+
+```{r}
+head(dtaM)
+```
+
 
 ## Selekce dat
 
 ```{r}
-removed_variables <- c("noiseLevel", "sourceLDEN", "ID")
-dtaM <- dtaM[, !removed_variables, with = FALSE]
+#removed_variables <- c("noiseLevel", "sourceLDEN", "ID")
+selected_variables <- c("L8_NDVI_Max", "S2_ISA", "VIIRS","LDEN")
+#dtaM <- dtaM[, !removed_variables, with = FALSE]
+dtaM <- dtaM[, ..selected_variables]
+dtaM[, LDEN := as.factor(LDEN)]
 head(dtaM)
 ```
 
@@ -60,160 +68,113 @@ valid_data <- dtaM[valid_index]
 test_data <- dtaM[test_index]
 ```
 
+Z důvodu nerovnoměrného zastoupení ve všech kategoriích byla data vyvážena
+
+```{r}
+str(train_data)  # Zkontroluj, zda LDEN je faktor a data mají správný formát
+table(train_data$LDEN)  # Ověř počet vzorků v každé kategorii
+train_data <- na.omit(train_data)
+
+```
+
+## Vyvážení tříd v datech
+
+```{r}
+if (!require(smotefamily)) install.packages("smotefamily")
+library(smotefamily)
+
+train_data$LDEN <- as.factor(train_data$LDEN)
+
+# Oddělení nezávislých proměnných (X) a cílové proměnné (target)
+X <- train_data[, !names(train_data) %in% "LDEN", with = FALSE]
+target <- train_data$LDEN
+
+smote_data <- SMOTE(X, target, K = 5, dup_size = 5)
+
+# Konverze výstupu na data.table a přejmenování
+balanced_data <- as.data.table(smote_data$data)
+names(balanced_data)[ncol(balanced_data)] <- "LDEN"
+
+# Konverze LDEN zpět na faktor
+balanced_data$LDEN <- as.factor(balanced_data$LDEN)
+
+# Kontrola vyváženosti tříd po SMOTE
+table(balanced_data$LDEN)
+
+```
 # Model
 
-## Trénink modelu RF
+## Trénink modelu RF (před sloučením kategorií)
 
 ```{r rf-model-training}
 # Def RF model
 rf_model <- randomForest(
   LDEN ~ ., 
-  data = train_data, 
-  #mtry = 10,
-  ntree = 2000, 
-  #nodesize = 5, 
+  data = balanced_data, 
+  mtry = 3,
+  ntree = 300, 
+  nodesize = 15, 
   importance = TRUE, 
   na.action = na.omit
 )
 
 print(rf_model)
+varImpPlot(rf_model)
 ```
-```{r}
-# Promenne pouzite v modelu
-cat("Variables included in the model:\n")
-print(colnames(train_data))
-```
-
-
-## Důležitost proměnných
-
-```{r feature-importance}
-
-importance_scores <- importance(rf_model)
-var_imp <- data.frame(
-  Variable = rownames(importance_scores),
-  MeanDecreaseAccuracy = importance_scores[, 1],
-  MeanDecreaseGini = importance_scores[, 2]
-)
-
-# Odstraneni noiseLevel, sourceLDEN, ID
-var_imp <- var_imp[!var_imp$Variable %in% c("noiseLevel", "ID", "sourceLDEN"), ]
-
-var_imp <- var_imp[order(var_imp$MeanDecreaseAccuracy, decreasing = TRUE), ]
-
-ggplot(var_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +
-  labs(
-    title = "Feature Importance - Random Forest",
-    x = "Variables",
-    y = "Mean Decrease in Accuracy"
-  ) +
-  theme_minimal()
-```
-
-# Model - upravený
-
-## Optimalizace hypermarkerů
-
-```{r rf-hyperparameter-tuning}
-control <- trainControl(method = "cv", number = 5)
-
-tune_grid <- expand.grid(
-  mtry = c(2, 4, 6, 8),
-  splitrule = "variance",
-  min.node.size = c(1, 5, 10)
-)
-
-set.seed(123)
-rf_tuned <- train(
-  LDEN ~ ., 
-  data = train_data, 
-  method = "ranger",
-  trControl = control,
-  tuneGrid = tune_grid
-)
-
-# Best model tuning
-print(rf_tuned$bestTune)
-```
-
-## Úprava vstupních proměnných
 
 ```{r}
-# vyber casti dat - nema smysl
-#dtaM <- dtaM[, .(LDEN, L8_NDVI_Max, S2_NDBI, S2_ISA, S2_UI, NO2_log, VIIRS_log, CO, HCHO_log, CH4_log, S2_MNDWI, LST, SO2)]
-#dtaM <- dtaM[, .(LDEN, L8_NDVI_Max, S2_NDBI, S2_ISA, L8_ISA, S2_UI, S2_NDVI_Median, L8_NDBI, NO2_log, VIIRS_log, L8_NDVI_Median, NO2)]
+# Sloucení kategorií 70 dB až 90 dB do jedné
+library(dplyr)
 
-# opetovne rozdeleni dat
-set.seed(123)
-n <- nrow(dtaM)
-train_index <- sample(1:n, 0.7 * n)  # 70% training data
-remaining_index <- setdiff(1:n, train_index)
-valid_index <- sample(remaining_index, 0.5 * length(remaining_index))  # 15% validation data
-test_index <- setdiff(remaining_index, valid_index)  # 15% test data
+balanced_data <- balanced_data %>%
+  mutate(LDEN = recode(LDEN, 
+                       "70" = "70+", 
+                       "75" = "70+", 
+                       "80" = "70+", 
+                       "85" = "70+", 
+                       "90" = "70+"))
 
-train_data <- dtaM[train_index]
-valid_data <- dtaM[valid_index]
-test_data <- dtaM[test_index]
+# Ověření distribuce tříd po sloučení
+table(balanced_data$LDEN)
 
 ```
 
-## Trénink modelu RF s optimalizovanými parametry
+## Trénink modelu RF (po sloučení kategorií)
 
-```{r rf-model-training}
-# trenovani modeul - optimalni parametry
-set.seed(123)
+```{r}
 rf_model <- randomForest(
   LDEN ~ ., 
-  data = train_data, 
-  #mtry = rf_tuned$bestTune$mtry, # vyslo 8
+  data = balanced_data, 
   mtry = 3,
   ntree = 500, 
-  #nodesize = rf_tuned$bestTune$min.node.size,  # vyslo 5
-  nodesize = 1,
+  nodesize = 15, 
   importance = TRUE, 
   na.action = na.omit
 )
 
-# Display model summary
 print(rf_model)
+varImpPlot(rf_model)
 ```
 
-## Důležitost proměnných - po změně
-
-```{r feature-importance}
-
-importance_scores <- importance(rf_model)
-var_imp <- data.frame(
-  Variable = rownames(importance_scores),
-  MeanDecreaseAccuracy = importance_scores[, 1],
-  MeanDecreaseGini = importance_scores[, 2]
-)
-
-var_imp <- var_imp[order(var_imp$MeanDecreaseAccuracy, decreasing = TRUE), ]
-
-ggplot(var_imp, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +
-  labs(
-    title = "Feature Importance - Random Forest",
-    x = "Variables",
-    y = "Mean Decrease in Accuracy"
-  ) +
-  theme_minimal()
-```
 
 # Vyhodnocení modelu
 
 ```{r model-evaluation}
 # predikce test data
 predicted <- predict(rf_model, test_data)
-actual <- test_data$LDEN
+actual <- as.numeric(test_data$LDEN)
 
 # predikce train data
 train_predicted <- predict(rf_model, train_data)
-train_actual <- train_data$LDEN
+train_actual <- as.numeric(train_data$LDEN)
+
+# prevod na number
+train_predicted <- as.numeric(train_predicted)
+train_actual <- as.numeric(train_actual)
+predicted <- as.numeric(predicted)
+actual <- as.numeric(actual)
+valid_predicted <- as.numeric(valid_predicted)
+valid_actual <- as.numeric(valid_actual)
 
 # vypocet metrik
 train_rmse <- sqrt(mean((train_predicted - train_actual)^2))
@@ -232,8 +193,8 @@ cat("RMSE on Test Data:", rmse, "\n")
 cat("MAE on Test Data:", mae, "\n")
 cat("R-squared on Test Data:", rsq, "\n")
 
-valid_predicted <- predict(rf_model, valid_data)
-valid_actual <- valid_data$LDEN
+valid_predicted <- as.numeric(predict(rf_model, valid_data))
+valid_actual <- as.numeric(valid_data$LDEN)
 
 valid_rmse <- sqrt(mean((valid_predicted - valid_actual)^2)) 
 valid_mae <- mean(abs(valid_predicted - valid_actual)) 
