@@ -27,4 +27,4 @@ Práce s daty [Projekt v R](https://github.com/LenkaMikova/NoisMaps/blob/main/DP
 
 
 
-> **TIP:** [StoryMaps DP](https://storymaps.arcgis.com/stories/3dbe9c7af61e4e5ca5b43ddbcbe7fee5/) k diplomové práci</p>
+> **TIP:** [StoryMaps DP](https://arcg.is/0qDfPn) k diplomové práci</p>
