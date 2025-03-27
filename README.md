@@ -22,8 +22,8 @@ Práce se zabývá možností tvorby modelu jenž by predikovat hlukové hladiny
 Kód v Python pro stažení satelitních dat (využití balíčku GEE) je popsán v [Colab](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_LMI_dataDown_final.ipynb).</p>
 Práce s daty [Projekt v R](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.Rproj)</p>
 [Sloučení dat](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.qmd), [analýzu a úpravu dat](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_02.qmd) a modely [Random Forest](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_03.qmd), [Gradient Boosting](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_04.qmd) a [neuronové sítě](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_05.qmd).</p>
-Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
-[Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p>
+Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p> bude doplněno po obhajobě.
+[Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/xxx)</p> budou doplněny po obhajobě.
 
 
 
