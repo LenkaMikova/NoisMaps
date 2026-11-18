@@ -23,7 +23,7 @@ Kód v Python pro stažení satelitních dat (využití balíčku GEE) je popsá
 Práce s daty [Projekt v R](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.Rproj)</p>
 [Sloučení dat](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk.qmd), [analýzu a úpravu dat](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_02.qmd) a modely [Random Forest](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_03.qmd), [Gradient Boosting](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_04.qmd) a [neuronové sítě](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_05.qmd).</p>
 Úplné znění diplomové práce bez příloh [DP](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_DPZ.pdf).</p> 
-[Přílohy k DP](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_DPZ_p%C5%99%C3%ADlohy.pdf).</p> 
+[Přílohy k DP na GitHub](https://github.com/LenkaMikova/NoisMaps/blob/main/DP_hluk_DPZ_p%C5%99%C3%ADlohy.pdf) a na [Zenodo](https://zenodo.org/records/14799898?preview=1&token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjlkZTc0YjhhLWYzNTgtNDU5Zi04Zjg3LTk1OGYzZTkwNzRiNCIsImRhdGEiOnt9LCJyYW5kb20iOiI5OGY0MjJjNjhhZWM4NmZjMTFkZWNkZTYyOTI5NGM5MCJ9.pQBu9ILNZwHOarqYcDRLqZCvgWTKWoVwm3sSB0FrAbxK8GemyLAAIplR5oeZOahtl98rL6JPv2dKWooqnUnLHw).</p> 
 
 
 
